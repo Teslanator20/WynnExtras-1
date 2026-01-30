@@ -236,6 +236,35 @@ public class maintracking {
             null
     );
 
+    // Subcommand: /we lootrun debug
+    private static SubCommand lootrunDebugSubCmd = new SubCommand(
+            "debug",
+            "Toggle lootrun scanning debug mode",
+            (ctx) -> {
+                aspect.lootrunDebug = !aspect.lootrunDebug;
+                McUtils.sendMessageToClient(WynnExtras.addWynnExtrasPrefix(
+                    aspect.lootrunDebug ? "§aLootrun debug enabled" : "§cLootrun debug disabled"
+                ));
+                return 1;
+            },
+            null,
+            null
+    );
+
+    // Command: /we lootrun
+    private static Command lootrunCmd = new Command(
+            "lootrun",
+            "View lootrun loot pools",
+            (ctx) -> {
+                MinecraftUtils.mc().send(() -> {
+                    LootrunScreen.open();
+                });
+                return 1;
+            },
+            List.of(lootrunDebugSubCmd),
+            null
+    );
+
     // Legacy command for backwards compatibility
     private static Command Scanaspects = new Command(
             "ScanAspects",
@@ -248,7 +277,6 @@ public class maintracking {
             null
     );
 
-    //TODO: interfaces tracken und dann zeug aufrufen
     static boolean inTreeMenu = false;
     static boolean AspectScanreq = false;
     static boolean inAspectMenu = false;
@@ -256,10 +284,8 @@ public class maintracking {
     static boolean inRaidChest = false;
     static boolean inPartyFinder = false;
     static boolean inPreviewChest = false;
-    static boolean Raiddone = true;
     static boolean PrevPageRaid = false;
     static int GuiSettleTicks = 0;
-    static int counter = 0;
     static boolean NextPageRaid = false;
     public static ItemStack[] aspectsInChest = new ItemStack[5];
     public static Boolean scanDone = false;
@@ -269,10 +295,13 @@ public class maintracking {
     static boolean needToClickAbilityTree = false;
     static boolean inCharacterMenu = false;
     static int characterMenuWaitTicks = 0;
+    static boolean inLootrunChest = false;
+    static String lastLootrunChestTitle = "";
 
     public static void init(){
         // Load saved loot pool data
         LootPoolData.INSTANCE.load();
+        LootrunLootPoolData.INSTANCE.load();
         GambitData.INSTANCE.load();
         FavoriteAspectsData.INSTANCE.load();
 
@@ -296,6 +325,7 @@ public class maintracking {
                 aspectsInChest = new ItemStack[5];
                 gambitDetected = false;
                 lastPreviewChestTitle = "";
+                lastLootrunChestTitle = "";
                 aspect.resetRewardAspects();
                 // DON'T reset needToClickAbilityTree - it needs to persist across screen changes
                 return;
@@ -318,6 +348,9 @@ public class maintracking {
                              InventoryTitle.equals("\uDAFF\uDFEA\uE00D\uDAFF\uDF6F\uF00C") || // NOL
                              InventoryTitle.equals("\uDAFF\uDFEA\uE00D\uDAFF\uDF6F\uF00D") || // TCC
                              InventoryTitle.equals("\uDAFF\uDFEA\uE00D\uDAFF\uDF6F\uF00E");   // TNA
+
+            // Lootrun chests have different titles for each camp
+            inLootrunChest = LootrunLootPoolData.isLootrunChest(InventoryTitle);
 
             // Character menu: wait 5 ticks then click slot 9 (Ability Tree) to open the tree menu
             if(inCharacterMenu && needToClickAbilityTree){
@@ -383,9 +416,18 @@ public class maintracking {
             if(inPreviewChest){
                 String currentTitle = currScreen.getTitle().getString();
                 if(!currentTitle.equals(lastPreviewChestTitle)){
-                    System.out.println("[WynnExtras] Preview chest detected, title: " + currentTitle);
                     lastPreviewChestTitle = currentTitle;
                     aspect.scanPreviewChest(screen, currentTitle);
+                }
+                return;
+            }
+
+            // Lootrun chest: scan when title changes (allows switching camps)
+            if(inLootrunChest){
+                String currentTitle = currScreen.getTitle().getString();
+                if(!currentTitle.equals(lastLootrunChestTitle)){
+                    lastLootrunChestTitle = currentTitle;
+                    aspect.scanLootrunChest(screen, currentTitle);
                 }
                 return;
             }
@@ -395,8 +437,7 @@ public class maintracking {
                 try {
                     aspect.AspectsInRaidChest();
                 } catch (Exception e) {
-                    System.err.println("[WynnExtras] Error scanning raid chest: " + e.getMessage());
-                    e.printStackTrace();
+                    McUtils.sendMessageToClient(WynnExtras.addWynnExtrasPrefix("§cError scanning raid chest: " + e.getMessage()));
                 }
                 return;
             }
@@ -423,15 +464,7 @@ public class maintracking {
     public static void setNextPage(boolean nextPage) {
         maintracking.nextPage = nextPage;
     }
-    public static void setRaiddone(boolean value){
-        Raiddone = value;
-    }
-    public static void setNextPageRaid(boolean nextPage) {
-        maintracking.NextPageRaid = nextPage;
-    }
-    public static void setPrevPageRaid(boolean nextPage) {
-        maintracking.PrevPageRaid = nextPage;
-    }
+
     public static void setNeedToClickAbilityTree(boolean value) {
         needToClickAbilityTree = value;
     }

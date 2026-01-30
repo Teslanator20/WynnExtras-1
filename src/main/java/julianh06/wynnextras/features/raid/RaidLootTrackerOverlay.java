@@ -177,20 +177,6 @@ public class RaidLootTrackerOverlay {
         RaidLootData data = RaidLootConfig.INSTANCE.data;
         data.initSession();
 
-        // DEBUG: Print data values once per second
-        MinecraftClient mc = MinecraftClient.getInstance();
-        if (mc.player != null && mc.player.age % 20 == 0) {
-            System.out.println("[WynnExtras DEBUG] Overlay data: " +
-                    "EB=" + data.emeraldBlocks + ", " +
-                    "LE=" + data.liquidEmeralds + ", " +
-                    "T1=" + data.amplifierTier1 + ", " +
-                    "Bags=" + data.totalBags + ", " +
-                    "Tomes=" + data.totalTomes + ", " +
-                    "Charms=" + data.totalCharms);
-            System.out.println("[WynnExtras DEBUG] Per-raid data size: " +
-                    (data.perRaidData != null ? data.perRaidData.size() : "null"));
-        }
-
         boolean showSession = config.raidLootTrackerShowSession;
         boolean compact = config.raidLootTrackerCompact;
         String selectedFilter = RAID_FILTERS.get(selectedFilterIndex);

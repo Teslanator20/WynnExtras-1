@@ -28,7 +28,6 @@ import java.util.List;
 
 
 public class aspect {
-    //TODO: aus tree stuff zeug klauen, auf aspects page gehen, dann ausgeben aspect x:100
     static int SearchedPages = 0;
     public static final Map<String, Pair<String, String>> allAspects = new HashMap<>();
 
@@ -135,7 +134,7 @@ public class aspect {
                 // Stop early if we encounter empty slots before batch is full
                 if (!slot.hasStack()) {
                     // If this happens before readCount == 18, stop the batch immediately
-                    dummyfunction(screen);
+                    goToNextPage(screen);
                     break; // Exit loop early, immediately go to next page
                 }
 
@@ -189,7 +188,7 @@ public class aspect {
                     for (Map.Entry<String, Pair<String, String>> entry : result.entrySet()) {
                         allAspects.put(entry.getKey(), entry.getValue());
                     }
-                    dummyfunction(screen);
+                    goToNextPage(screen);
                     break; // Done with this page, no need to check further
                 }
 
@@ -288,11 +287,9 @@ public class aspect {
 
         // Check if there's a next page (slot 16)
         if (!screen.getScreenHandler().slots.get(16).getStack().isEmpty()) {
-            System.out.println("[WynnExtras] Next page available, total collected so far: " + collectedRewardAspects.size());
             NextPageRaid(screen);
         } else {
             // Last page - upload now
-            System.out.println("[WynnExtras] Last page reached, total aspects found: " + collectedRewardAspects.size());
             maintracking.scanDone = true;
 
             if (!collectedRewardAspects.isEmpty()) {
@@ -315,7 +312,6 @@ public class aspect {
             return;
         }
 
-        System.out.println("[WynnExtras] Uploading " + collectedRewardAspects.size() + " aspects from " + currentRaid);
         McUtils.sendMessageToClient(WynnExtras.addWynnExtrasPrefix("§7Uploading §e" + collectedRewardAspects.size() + " §7aspect(s) from §6" + currentRaid + "§7..."));
 
         // Upload to API
@@ -354,7 +350,6 @@ public class aspect {
      */
     public static void resetRewardAspects() {
         if (!collectedRewardAspects.isEmpty()) {
-            System.out.println("[WynnExtras] Clearing " + collectedRewardAspects.size() + " collected reward aspects");
             collectedRewardAspects.clear();
         }
     }
@@ -382,8 +377,7 @@ public class aspect {
         return deepest.length() > out.length() ? deepest.toString() : out.toString();
     }
 
-    private static void dummyfunction(HandledScreen<?> screen) {
-        //System.out.println("dummyfunction called after 18 slots read");
+    private static void goToNextPage(HandledScreen<?> screen) {
         SearchedPages++;
         TreeLoader.clickOnNameInInventory("Next Page",screen,MinecraftClient.getInstance());
         if(SearchedPages<=6){
@@ -394,23 +388,21 @@ public class aspect {
             }
         }
         else{
-            System.out.println(allAspects);
             McUtils.sendMessageToClient(WynnExtras.addWynnExtrasPrefix("§aScanned " + allAspects.size() + " aspects! §7Uploading..."));
             // Create a copy of the map to avoid it being cleared before async upload completes
             Map<String, Pair<String, String>> aspectsCopy = new HashMap<>(allAspects);
             WynncraftApiHandler.processAspects(aspectsCopy);
             resetAllAspects();
-            SearchedPages = 0; //TODO
+            SearchedPages = 0;
         }
     }
     private static void NextPageRaid(HandledScreen<?> screen) {
-        System.out.println("[WynnExtras] Clicking next page in reward chest");
         TreeLoader.clickOnNameInInventory("Next Page",screen,MinecraftClient.getInstance());
         maintracking.NextPageRaid = true;
         maintracking.GuiSettleTicks = 0;
     }
+
     public static void PrevPageRaid(HandledScreen<?> screen) {
-        System.out.println("[WynnExtras] Clicking previous page in reward chest");
         TreeLoader.clickOnNameInInventory("Previous Page",screen,MinecraftClient.getInstance());
         maintracking.PrevPageRaid = true;
         maintracking.GuiSettleTicks = 0;
@@ -555,8 +547,6 @@ public class aspect {
     public static void scanPreviewChest(HandledScreen<?> screen, String screenTitle) {
         if (screen == null) return;
 
-        System.out.println("[WynnExtras] scanPreviewChest called with title: " + screenTitle);
-
         try {
             // Detect raid from the last character of the title
             String selectedRaid = "Unknown";
@@ -584,6 +574,7 @@ public class aspect {
                 String aspectName = null;
                 String tierLine = null;
                 String rarity = "";
+                String requiredClass = null;
                 StringBuilder description = new StringBuilder();
                 boolean foundName = false;
                 boolean foundTier = false;
@@ -610,6 +601,11 @@ public class aspect {
                             }
                         }
                         continue;
+                    }
+
+                    // Extract required class (e.g. "Class Req: Warrior")
+                    if (line.contains("Class Req:")) {
+                        requiredClass = line.replace("Class Req:", "").trim().toLowerCase();
                     }
 
                     // Check if we've reached tier info
@@ -646,7 +642,7 @@ public class aspect {
 
                     // Save for loot pool data with full info
                     if (!rarity.isEmpty()) {
-                        lootPoolDataFull.add(new LootPoolData.AspectEntry(aspectName, rarity, bestTierLine, description.toString()));
+                        lootPoolDataFull.add(new LootPoolData.AspectEntry(aspectName, rarity, bestTierLine, description.toString(), requiredClass));
                     }
                 }
             }
@@ -660,8 +656,6 @@ public class aspect {
             if (!foundAspects.isEmpty()) {
                 // Upload with throttling (once per minute per raid, unless reset time)
                 if (canUpload(selectedRaid)) {
-                    System.out.println("[WynnExtras] Found " + foundAspects.size() + " aspects, uploading...");
-
                     // Upload personal aspects WITH progress (requires API key)
                     WynncraftApiHandler.processAspects(foundAspects);
 
@@ -672,7 +666,6 @@ public class aspect {
                 } else {
                     long timeSinceLastUpload = System.currentTimeMillis() - lastUploadTime.get(selectedRaid);
                     long secondsRemaining = (UPLOAD_COOLDOWN_MS - timeSinceLastUpload) / 1000;
-                    System.out.println("[WynnExtras] Upload throttled for " + selectedRaid + ", wait " + secondsRemaining + "s");
                     McUtils.sendMessageToClient(WynnExtras.addWynnExtrasPrefix("§7Upload cooldown: wait " + secondsRemaining + "s"));
                 }
             }
@@ -681,6 +674,234 @@ public class aspect {
             McUtils.sendMessageToClient(WynnExtras.addWynnExtrasPrefix("§cError scanning preview chest: " + e.getMessage()));
             e.printStackTrace();
         }
+    }
+
+    // Upload throttling for lootrun chests (once per minute per camp, unless it's reset time)
+    private static final Map<String, Long> lastLootrunUploadTime = new HashMap<>();
+
+    /**
+     * Check if enough time has passed since last upload for this camp
+     * Returns true if upload is allowed
+     */
+    private static boolean canUploadLootrun(String camp) {
+        // Always allow during reset time
+        if (isResetTime()) {
+            return true;
+        }
+
+        Long lastUpload = lastLootrunUploadTime.get(camp);
+        if (lastUpload == null) {
+            return true; // Never uploaded before
+        }
+
+        long timeSinceLastUpload = System.currentTimeMillis() - lastUpload;
+        return timeSinceLastUpload >= UPLOAD_COOLDOWN_MS;
+    }
+
+    // Debug mode for lootrun scanning
+    public static boolean lootrunDebug = false;
+
+    /**
+     * Scans the lootrun chest for ALL items (not just aspects)
+     * Camp is detected from the screen title itself (last character changes per camp)
+     * Detects item type: normal, shiny, tome
+     * Saves loot pool data locally for the GUI
+     */
+    public static void scanLootrunChest(HandledScreen<?> screen, String screenTitle) {
+        if (screen == null) return;
+
+        if (lootrunDebug) {
+            McUtils.sendMessageToClient(WynnExtras.addWynnExtrasPrefix("§e[DEBUG] Scanning lootrun chest..."));
+        }
+
+        try {
+            // Detect camp from the last character of the title
+            String selectedCamp = LootrunLootPoolData.getCampFromTitle(screenTitle);
+            if (selectedCamp == null) {
+                System.err.println("[WynnExtras] Could not detect camp from title: " + screenTitle);
+                if (lootrunDebug) {
+                    McUtils.sendMessageToClient(WynnExtras.addWynnExtrasPrefix("§c[DEBUG] Could not detect camp from title"));
+                }
+                return;
+            }
+
+            String campName = LootrunLootPoolData.CAMP_NAMES.get(selectedCamp);
+            if (lootrunDebug) {
+                McUtils.sendMessageToClient(WynnExtras.addWynnExtrasPrefix("§e[DEBUG] Detected camp: §6" + selectedCamp + " §7(" + campName + ")"));
+            }
+
+            List<LootrunLootPoolData.LootrunItem> foundItems = new ArrayList<>();
+
+            // Collect all items from the chest (first 52 slots only, skip player inventory)
+            int totalSlots = screen.getScreenHandler().slots.size();
+            int chestSlots = Math.min(52, totalSlots);
+
+            for (int slotIndex = 0; slotIndex < chestSlots; slotIndex++) {
+                Slot slot = screen.getScreenHandler().slots.get(slotIndex);
+                if (!slot.hasStack()) continue;
+
+                ItemStack stack = slot.getStack();
+
+                // Get item name from custom name
+                if (stack.getCustomName() == null) continue;
+
+                String itemName = stack.getCustomName().getString().replaceAll("§.", "").trim();
+                if (itemName.isEmpty()) continue;
+
+                // Skip UI elements and currency
+                String itemNameLower = itemName.toLowerCase();
+                if (itemNameLower.contains("change camp") ||
+                    itemNameLower.contains("next page") ||
+                    itemNameLower.contains("previous page") ||
+                    itemNameLower.contains("liquid emerald") ||
+                    itemNameLower.contains("emerald block")) {
+                    if (lootrunDebug) {
+                        System.out.println("[WynnExtras DEBUG] Slot " + slotIndex + ": " + itemName + " - skipped (UI/currency)");
+                    }
+                    continue;
+                }
+
+                // Skip UI elements (like arrows, glass panes, etc.)
+                // Items typically have colored names indicating rarity
+                if (stack.getCustomName().getStyle() == null ||
+                    stack.getCustomName().getStyle().getColor() == null) {
+                    if (lootrunDebug) {
+                        System.out.println("[WynnExtras DEBUG] Slot " + slotIndex + ": " + itemName + " - skipped (no color)");
+                    }
+                    continue;
+                }
+
+                // Detect rarity from color
+                String hexCode = stack.getCustomName().getStyle().getColor().getHexCode();
+                String rarity = getRarityFromColor(hexCode);
+
+                if (lootrunDebug) {
+                    System.out.println("[WynnExtras DEBUG] Slot " + slotIndex + ": " + itemName + " - color=" + hexCode + ", rarity=" + rarity);
+                }
+
+                // Skip if we couldn't determine rarity (probably a UI element)
+                if (rarity.isEmpty()) {
+                    if (lootrunDebug) {
+                        System.out.println("[WynnExtras DEBUG] Slot " + slotIndex + ": skipped (unknown rarity)");
+                    }
+                    continue;
+                }
+
+                // Determine item type (normal, shiny, tome)
+                String itemType = LootrunLootPoolData.LootrunItem.determineType(itemName);
+
+                // Extract full tooltip
+                List<Text> tooltips = stack.getTooltip(Item.TooltipContext.DEFAULT,
+                    MinecraftClient.getInstance().player, TooltipType.BASIC);
+                StringBuilder tooltipBuilder = new StringBuilder();
+                String shinyStat = "";
+
+                for (Text tooltip : tooltips) {
+                    String rawLine = tooltip.getString();
+                    String line = rawLine.replaceAll("§.", "").trim();
+                    if (!line.isEmpty()) {
+                        if (tooltipBuilder.length() > 0) {
+                            tooltipBuilder.append("\n");
+                        }
+                        tooltipBuilder.append(line);
+                    }
+
+                    // Debug: print all lines for shiny items
+                    if (itemType.equals("shiny") && lootrunDebug) {
+                        System.out.println("[WynnExtras DEBUG] Tooltip line: \"" + line + "\"");
+                    }
+
+                    // Extract shiny stat - look for hexagon icon ⬡ in tooltip
+                    // Format: ⬡ [Tracked Stat]: 0
+                    if (itemType.equals("shiny") && shinyStat.isEmpty()) {
+                        // Check for hexagon icon (⬡ = \u2B21) in the line
+                        // Skip the item name line (which also has the icon)
+                        boolean hasHexagon = line.contains("⬡") || line.contains("\u2B21");
+                        boolean isStatLine = hasHexagon && line.contains(":") && !line.toLowerCase().contains("shiny");
+
+                        if (isStatLine) {
+                            // Extract just the stat part (remove the icon)
+                            shinyStat = line.replace("⬡", "").replace("\u2B21", "").trim();
+                            if (lootrunDebug) {
+                                System.out.println("[WynnExtras DEBUG] Shiny stat detected: " + shinyStat);
+                                McUtils.sendMessageToClient(WynnExtras.addWynnExtrasPrefix("§e[DEBUG] Shiny stat: §a" + shinyStat));
+                            }
+                        }
+                    }
+                }
+
+                LootrunLootPoolData.LootrunItem item = new LootrunLootPoolData.LootrunItem(
+                    itemName, rarity, itemType, tooltipBuilder.toString(), shinyStat
+                );
+                foundItems.add(item);
+
+                if (lootrunDebug) {
+                    McUtils.sendMessageToClient(WynnExtras.addWynnExtrasPrefix("§7[DEBUG] Found: §" + getRarityColorCode(rarity) + itemName + " §7(" + itemType + ")"));
+                    if (!shinyStat.isEmpty()) {
+                        McUtils.sendMessageToClient(WynnExtras.addWynnExtrasPrefix("§7[DEBUG] Shiny stat: §e" + shinyStat));
+                    }
+                }
+            }
+
+            // ALWAYS save loot pool data to local storage
+            if (!foundItems.isEmpty()) {
+                LootrunLootPoolData.INSTANCE.saveLootPool(selectedCamp, foundItems);
+                McUtils.sendMessageToClient(WynnExtras.addWynnExtrasPrefix("§aScanned §e" + foundItems.size() + " §aitems from §6" + campName + " §7(saved locally)"));
+            } else {
+                McUtils.sendMessageToClient(WynnExtras.addWynnExtrasPrefix("§7No items found in lootrun chest"));
+                if (lootrunDebug) {
+                    McUtils.sendMessageToClient(WynnExtras.addWynnExtrasPrefix("§c[DEBUG] No valid items detected. Check slot contents."));
+                }
+            }
+
+            // Upload items to crowdsourcing
+            if (!foundItems.isEmpty()) {
+                // Upload with throttling (once per minute per camp, unless reset time)
+                if (canUploadLootrun(selectedCamp)) {
+                    // Upload to crowdsourcing
+                    WynncraftApiHandler.uploadLootrunLootPool(selectedCamp, foundItems);
+
+                    lastLootrunUploadTime.put(selectedCamp, System.currentTimeMillis());
+                } else {
+                    long timeSinceLastUpload = System.currentTimeMillis() - lastLootrunUploadTime.get(selectedCamp);
+                    long secondsRemaining = (UPLOAD_COOLDOWN_MS - timeSinceLastUpload) / 1000;
+                    McUtils.sendMessageToClient(WynnExtras.addWynnExtrasPrefix("§7Upload cooldown: wait " + secondsRemaining + "s"));
+                }
+            }
+
+        } catch (Exception e) {
+            McUtils.sendMessageToClient(WynnExtras.addWynnExtrasPrefix("§cError scanning lootrun chest: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Get color code character for rarity
+     */
+    private static char getRarityColorCode(String rarity) {
+        return switch (rarity) {
+            case "Mythic" -> '5';
+            case "Fabled" -> 'c';
+            case "Legendary" -> 'b';
+            case "Rare" -> 'd';
+            case "Set" -> 'a';
+            case "Unique" -> 'e';
+            default -> 'f';
+        };
+    }
+
+    /**
+     * Get rarity string from hex color code
+     */
+    private static String getRarityFromColor(String hexCode) {
+        return switch (hexCode) {
+            case "#AA00AA" -> "Mythic";      // Dark purple
+            case "#FF5555" -> "Fabled";      // Red
+            case "#55FFFF" -> "Legendary";   // Aqua
+            case "#FF55FF" -> "Rare";        // Light purple/pink
+            case "#55FF55" -> "Set";         // Green
+            case "#FFFF55" -> "Unique";      // Yellow
+            default -> "";
+        };
     }
 }
 

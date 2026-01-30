@@ -65,6 +65,12 @@ public class AspectScreenSimple extends WEScreen implements AspectScreenHost {
     private int currentPage = 0; // 0 = Loot Pools, 1 = Gambits, 2 = My Aspects, 3 = Raid Loot, 4 = Explore, 5 = Leaderboard
     private static final int MAX_PAGE = 5; // 6 pages total
 
+    // Raid icons (same as RaidListScreen)
+    private static final Identifier NOTG_ICON = Identifier.of("wynnextras", "textures/gui/raid/raidicons/nestofthegrootslangs-small.png");
+    private static final Identifier NOL_ICON = Identifier.of("wynnextras", "textures/gui/raid/raidicons/orphionsnexusoflight-small.png");
+    private static final Identifier TCC_ICON = Identifier.of("wynnextras", "textures/gui/raid/raidicons/thecanyoncolossus-small.png");
+    private static final Identifier TNA_ICON = Identifier.of("wynnextras", "textures/gui/raid/raidicons/thenamelessanomaly-small.png");
+
     // For tooltips
     private LootPoolData.AspectEntry hoveredAspect = null;
     private int hoveredAspectX = 0;
@@ -417,12 +423,13 @@ public class AspectScreenSimple extends WEScreen implements AspectScreenHost {
         // Calculate aligned separator positions
         int[] rarityMaxCounts = calculateMaxRarityCounts(raids);
         int spacing = getAspectSpacing();
-        int mythicSeparatorY = startY + 150 + (rarityMaxCounts[0] * spacing) + 10;
+        int contentBase = startY + 130; // Base for content (after compacted header)
+        int mythicSeparatorY = contentBase + (rarityMaxCounts[0] * spacing) + 10;
         int fabledSeparatorY = mythicSeparatorY + (rarityMaxCounts[1] * spacing) + 25;
 
         // Store column info for scroll detection (in logical coords)
-        raidContentStartY = startY + 150; // Content starts below header
-        raidPanelHeight = logicalH - startY - getRaidPanelBottomMargin() - 150; // Content area height
+        raidContentStartY = contentBase; // Content starts below header
+        raidPanelHeight = logicalH - startY - getRaidPanelBottomMargin() - 130; // Content area height
 
         // FIRST PASS: Check hover for all columns before any drawing
         // This ensures hoveredAspect is set correctly before we draw
@@ -472,8 +479,8 @@ public class AspectScreenSimple extends WEScreen implements AspectScreenHost {
                         // Convert amount to tier info string
                         String tierInfo = convertAmountToTierInfo(amount, rarity);
 
-                        // Create new entry with personal tier info
-                        withProgress.add(new LootPoolData.AspectEntry(aspect.name, rarity, tierInfo, aspect.description));
+                        // Create new entry with personal tier info (preserve requiredClass from crowdsourced)
+                        withProgress.add(new LootPoolData.AspectEntry(aspect.name, rarity, tierInfo, aspect.description, aspect.requiredClass));
                     } else {
                         // No personal data, use crowdsourced as-is (will show without tier)
                         withProgress.add(aspect);
@@ -567,38 +574,35 @@ public class AspectScreenSimple extends WEScreen implements AspectScreenHost {
         boolean hoveringHeader = mouseX >= x && mouseX <= x + colWidth &&
                                  mouseY >= y && mouseY <= y + headerHeight;
 
-        // Raid header (centered)
-        drawCenteredText(context, "§6§l" + raidCode, x + colWidth / 2, y + 25);
-        drawCenteredText(context, "§7" + truncate(raidName, 30), x + colWidth / 2, y + 65);
+        // Draw raid icon centered above the box (bigger icon)
+        Identifier raidIcon = getRaidIcon(raidCode);
+        if (raidIcon != null && ui != null) {
+            int iconSize = 80;
+            ui.drawImage(raidIcon, x + colWidth / 2 - iconSize / 2, y - 15, iconSize, iconSize);
+        }
+
+        // Raid header (centered) - just the code, no long name
+        drawCenteredText(context, "§6§l" + raidCode, x + colWidth / 2, y + 70);
 
         // Get aspects (prioritize crowdsourced data)
         List<LootPoolData.AspectEntry> aspects = getLootPoolForRaid(raidCode);
-        boolean usingCrowdsourced = crowdsourcedLootPools.containsKey(raidCode) &&
-                                     crowdsourcedLootPools.get(raidCode) != null &&
-                                     !crowdsourcedLootPools.get(raidCode).isEmpty();
 
         // Calculate and show score
-        double score = calculateRaidScore(aspects);
+        double score = calculateRaidScore(aspects, raidCode);
         // Check if all aspects are actually maxed (have valid tierInfo that indicates max)
         boolean allMaxed = !aspects.isEmpty() && aspects.stream().allMatch(a ->
             a.tierInfo != null && (a.tierInfo.isEmpty() || a.tierInfo.contains("[MAX]"))
         );
         if (allMaxed && ui != null) {
             // Rainbow text for MAXED
-            ui.drawCenteredText("MAXED", x + colWidth / 2, y + 100, CommonColors.RAINBOW, 3f);
+            ui.drawCenteredText("MAXED", x + colWidth / 2, y + 95, CommonColors.RAINBOW, 3f);
         } else {
             String scoreText = String.format("§7Score: §e%.2f", score);
-            drawCenteredText(context, scoreText, x + colWidth / 2, y + 100);
+            drawCenteredText(context, scoreText, x + colWidth / 2, y + 95);
         }
 
-        // Show data source indicator
-        if (!aspects.isEmpty()) {
-            String dataSource = usingCrowdsourced ? "§a§o(Crowdsourced)" : "§e§o(Local)";
-            drawCenteredText(context, dataSource, x + colWidth / 2, y + 120);
-        }
-
-        // Separator line (more space below score)
-        drawRect(x + 12, y + 135, colWidth - 24, 6, 0xFF4e392d);
+        // Separator line below score
+        drawRect(x + 12, y + 115, colWidth - 24, 6, 0xFF4e392d);
 
         // Render tooltip if hovering (convert back to screen coords for tooltip)
         if (hoveringHeader && ui != null) {
@@ -613,8 +617,8 @@ public class AspectScreenSimple extends WEScreen implements AspectScreenHost {
             context.drawTooltip(textRenderer, tooltip, (int)ui.sx(mouseX), (int)ui.sy(mouseY));
         }
 
-        int contentStartY = y + 150; // Where content starts (below header)
-        int contentHeight = panelHeight - 150 - 12; // Available height for content
+        int contentStartY = y + 130; // Where content starts (below compacted header)
+        int contentHeight = panelHeight - 130 - 12; // Available height for content
         int scrollOffset = raidScrollOffsets[raidIndex];
 
         if (aspects.isEmpty()) {
@@ -694,8 +698,8 @@ public class AspectScreenSimple extends WEScreen implements AspectScreenHost {
         List<LootPoolData.AspectEntry> aspects = getLootPoolForRaid(raidCode);
 
         if (!aspects.isEmpty()) {
-            int contentStartY = y + 150;
-            int contentHeight = panelHeight - 150 - 10;
+            int contentStartY = y + 130; // Compacted header
+            int contentHeight = panelHeight - 130 - 10;
             int scrollOffset = raidScrollOffsets[raidIndex];
 
             // Check hover for all rarities
@@ -1382,121 +1386,157 @@ public class AspectScreenSimple extends WEScreen implements AspectScreenHost {
         }
     }
 
-    private double calculateRaidScore(List<LootPoolData.AspectEntry> aspects) {
-        double score = 0.0;
+    // Score calculation constants
+    private static final double GLOBAL_EXPONENT = 1.08;
+    private static final double NORMALIZATION_FACTOR = 0.92;
 
-        System.out.println("[WynnExtras DEBUG] calculateRaidScore called with " + aspects.size() + " aspects");
+    private double calculateRaidScore(List<LootPoolData.AspectEntry> aspects, String raidCode) {
+        double score = 0.0;
 
         for (LootPoolData.AspectEntry aspect : aspects) {
             String tierInfo = aspect.tierInfo;
-            System.out.println("[WynnExtras DEBUG] Aspect: " + aspect.name + " | tierInfo: " + tierInfo);
 
             if (tierInfo == null || tierInfo.isEmpty() || tierInfo.contains("[MAX]")) {
-                System.out.println("[WynnExtras DEBUG] Skipping (maxed or no data)");
                 continue; // Already maxed or no data, no score contribution
             }
 
             // Parse tierInfo: "Tier I >>>>>> Tier II [10/14]"
-            int remaining = 0;
-            String currentTierStr = "";
-            String targetTierStr = "";
-
-            // Extract remaining count [X/Y]
+            // Extract progress [X/Y]
             java.util.regex.Pattern progressPattern = java.util.regex.Pattern.compile("\\[(\\d+)/(\\d+)\\]");
             java.util.regex.Matcher progressMatcher = progressPattern.matcher(tierInfo);
             if (!progressMatcher.find()) {
-                System.out.println("[WynnExtras DEBUG] Failed to parse progress pattern");
-                continue; // Can't parse progress, skip this aspect
+                continue;
             }
 
             int current = Integer.parseInt(progressMatcher.group(1));
             int max = Integer.parseInt(progressMatcher.group(2));
-            remaining = max - current;
-            System.out.println("[WynnExtras DEBUG] Progress: " + current + "/" + max + " | Remaining: " + remaining);
+            int remainingThisTier = max - current;
 
-            // Extract tiers (match I, II, III, IV properly)
+            // Extract current tier
             java.util.regex.Pattern tierPattern = java.util.regex.Pattern.compile("Tier\\s+(IV|III|II|I)");
             java.util.regex.Matcher tierMatcher = tierPattern.matcher(tierInfo);
-            if (tierMatcher.find()) {
-                currentTierStr = tierMatcher.group(1); // First match = current tier
-                if (tierMatcher.find()) {
-                    targetTierStr = tierMatcher.group(1); // Second match = target tier
-                } else {
-                    // No target tier found - working to max out current tier
-                    targetTierStr = currentTierStr;
-                }
-            } else {
-                System.out.println("[WynnExtras DEBUG] Failed to parse tier pattern");
-                continue; // Can't parse tiers, skip this aspect
+            if (!tierMatcher.find()) {
+                continue;
+            }
+            int currentTier = romanToInt(tierMatcher.group(1));
+
+            // Calculate TOTAL remaining pulls to max this aspect
+            int maxTier = getMaxTierForRarity(aspect.rarity);
+            int totalRemaining = remainingThisTier;
+
+            // Add pulls needed for all remaining tiers after current
+            for (int tier = currentTier + 1; tier <= maxTier; tier++) {
+                totalRemaining += getDuplicatesForTier(aspect.rarity, tier);
             }
 
-            System.out.println("[WynnExtras DEBUG] Current tier: " + currentTierStr + " | Target tier: " + targetTierStr);
-
-            int currentTier = romanToInt(currentTierStr);
-            int targetTier = romanToInt(targetTierStr);
-
-            if (currentTier == 0 || targetTier == 0) {
-                System.out.println("[WynnExtras DEBUG] Invalid tier numbers");
-                continue; // Invalid tier, skip
-            }
-
-            // Apply tier-based weights
-            double weight = getTierWeight(aspect.rarity, currentTier, targetTier);
-            double contribution = remaining * weight;
-            System.out.println("[WynnExtras DEBUG] Weight: " + weight + " | Contribution: " + contribution);
+            // Calculate contribution using new formula:
+            // contribution = (totalRemaining / dropProb * weight) ^ GLOBAL_EXPONENT
+            double contribution = rarityContribution(totalRemaining, aspect.rarity);
 
             // Favorite aspects count 3x more
             if (FavoriteAspectsData.INSTANCE.isFavorite(aspect.name)) {
                 contribution *= 3.0;
-                System.out.println("[WynnExtras DEBUG] Favorite! Contribution after 3x: " + contribution);
             }
 
             score += contribution;
         }
 
-        System.out.println("[WynnExtras DEBUG] Final score: " + score);
-        return score;
+        // Apply raid-specific multiplier and normalization factor
+        double raidMultiplier = getRaidMultiplier(raidCode);
+        return score * raidMultiplier * NORMALIZATION_FACTOR;
     }
 
     /**
-     * Calculate tier weight based on rarity and tier progression.
+     * Expected pulls for missing aspects.
      */
-    private double getTierWeight(String rarity, int currentTier, int targetTier) {
-        String key = rarity.toLowerCase() + "_" + currentTier + "_" + targetTier;
+    private double expectedPulls(int missing, double dropProb) {
+        if (missing <= 0) return 0;
+        return missing / dropProb;
+    }
 
-        return switch (key) {
-            // Known weights from data
-            case "mythic_2_3" -> 13.55;
-            case "fabled_1_2" -> 10.4;
-            case "fabled_2_3" -> 0.65;
-            case "legendary_3_4" -> 0.905;
+    /**
+     * Score contribution per rarity using the formula:
+     * contribution = (expectedPulls * weight) ^ GLOBAL_EXPONENT
+     */
+    private double rarityContribution(int missing, String rarity) {
+        double dropProb = getDropProbForRarity(rarity);
+        double weight = getWeightForRarity(rarity);
+        double pulls = expectedPulls(missing, dropProb);
+        double weighted = pulls * weight;
+        return Math.pow(weighted, GLOBAL_EXPONENT);
+    }
 
-            // Tier progressions (estimated based on rarity pattern)
-            case "mythic_1_2" -> 20.0;
-            case "mythic_3_4" -> 10.0;
-            case "fabled_3_4" -> 0.5;
-            case "legendary_1_2" -> 15.0;
-            case "legendary_2_3" -> 1.5;
+    /**
+     * Get drop probability for each rarity.
+     */
+    private double getDropProbForRarity(String rarity) {
+        return switch (rarity.toLowerCase()) {
+            case "mythic" -> 0.08;
+            case "fabled" -> 0.46;
+            case "legendary" -> 0.46;
+            default -> 0.46;
+        };
+    }
 
-            // Same-tier progression (finishing current tier)
-            case "mythic_1_1" -> 20.0;
-            case "mythic_2_2" -> 13.55;
-            case "mythic_3_3" -> 10.0;
-            case "mythic_4_4" -> 5.0;
-            case "fabled_1_1" -> 10.4;
-            case "fabled_2_2" -> 5.0;
-            case "fabled_3_3" -> 0.65;
-            case "fabled_4_4" -> 0.5;
-            case "legendary_1_1" -> 15.0;
-            case "legendary_2_2" -> 5.0;
-            case "legendary_3_3" -> 1.5;
-            case "legendary_4_4" -> 0.905;
+    /**
+     * Raid-specific multiplier to widen score differences.
+     */
+    private double getRaidMultiplier(String raidCode) {
+        return switch (raidCode.toUpperCase()) {
+            case "TCC" -> 0.85;
+            case "TNA" -> 1.00;
+            case "NOTG" -> 1.22;
+            case "NOL" -> 1.30;
+            default -> 1.0;
+        };
+    }
 
-            // Rare weights
-            case "rare_1_1", "rare_2_2", "rare_3_3", "rare_4_4" -> 1.0;
-            case "rare_1_2", "rare_2_3", "rare_3_4" -> 1.0;
+    /**
+     * Get weight for each rarity.
+     */
+    private double getWeightForRarity(String rarity) {
+        return switch (rarity.toLowerCase()) {
+            case "mythic" -> 1.25;
+            case "fabled" -> 1.00;
+            case "legendary" -> 0.95;
+            default -> 1.00;
+        };
+    }
 
-            default -> 1.0; // Default weight
+    /**
+     * Get max tier for each rarity.
+     */
+    private int getMaxTierForRarity(String rarity) {
+        return switch (rarity.toLowerCase()) {
+            case "mythic" -> 3;     // Mythic has 3 tiers
+            case "fabled" -> 3;     // Fabled has 3 tiers
+            case "legendary" -> 4;  // Legendary has 4 tiers
+            default -> 4;
+        };
+    }
+
+    /**
+     * Get number of duplicates needed to upgrade TO a specific tier.
+     */
+    private int getDuplicatesForTier(String rarity, int tier) {
+        return switch (rarity.toLowerCase()) {
+            case "mythic" -> switch (tier) {
+                case 2 -> 4;   // Tier I → II
+                case 3 -> 10;  // Tier II → III
+                default -> 0;
+            };
+            case "fabled" -> switch (tier) {
+                case 2 -> 14;  // Tier I → II
+                case 3 -> 60;  // Tier II → III
+                default -> 0;
+            };
+            case "legendary" -> switch (tier) {
+                case 2 -> 4;    // Tier I → II
+                case 3 -> 25;   // Tier II → III
+                case 4 -> 120;  // Tier III → IV
+                default -> 0;
+            };
+            default -> 0;
         };
     }
 
@@ -3073,6 +3113,19 @@ public class AspectScreenSimple extends WEScreen implements AspectScreenHost {
         }
     }
 
+
+    /**
+     * Get the raid icon for a given raid code
+     */
+    private Identifier getRaidIcon(String raidCode) {
+        return switch (raidCode) {
+            case "NOTG" -> NOTG_ICON;
+            case "NOL" -> NOL_ICON;
+            case "TCC" -> TCC_ICON;
+            case "TNA" -> TNA_ICON;
+            default -> null;
+        };
+    }
 
     private String truncate(String text, int maxLength) {
         if (text.length() <= maxLength) return text;
