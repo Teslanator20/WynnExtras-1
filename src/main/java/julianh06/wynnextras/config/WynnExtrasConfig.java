@@ -71,6 +71,7 @@ public class WynnExtrasConfig {
     public boolean notgLowerPlatform = false;
     public boolean artifactRestored = true;
     public boolean itemZeroDurability = true;
+    public boolean colossalCoreSpawned = false;
 
     public void syncPremades() {
         if(premades == null) premades = new HashMap<>();
@@ -87,6 +88,7 @@ public class WynnExtrasConfig {
         premades.put("A new platform has|LOWER PLATFORM SPAWNED", notgLowerPlatform);
         premades.put("The Artifact's power has been restored|SPEAR RECHARGED", artifactRestored);
         premades.put("One of your items has reached zero durability|ITEM BROKE", itemZeroDurability);
+        premades.put("A Colossal Core has spawned!|CORE SPAWNED", colossalCoreSpawned);
 
         //Isoptera announcements
         premades.put("The Interdimensional Isoptera is in the Gray Grotto|GRAY", isopteraGray);
@@ -256,6 +258,15 @@ public class WynnExtrasConfig {
     public int totemWarningY = 80;
     public float totemWarningScale = 2.0f;
     public Align totemWarningAlignment = Align.CENTER;
+
+    // ==================== CURSE TRACKER ====================
+    public boolean curseTrackerEnabled = false;
+    public int curseTrackerX = -1;
+    public int curseTrackerY = 80;
+    public float curseTrackerScale = 1.0f;
+    public Align curseTrackerAlignment = Align.CENTER;
+    public boolean curseTrackerColorMobs = false;
+    public TextColor curseTrackerMobColor = TextColor.DARK_PURPLE;
 
     // ==================== BLOOD SORROW TIMER ====================
     public boolean bloodSorrowTimerEnabled = false;

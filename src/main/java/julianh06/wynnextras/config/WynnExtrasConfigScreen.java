@@ -317,6 +317,15 @@ public class WynnExtrasConfigScreen extends Screen implements ConfigScreenContex
                 .add(visibleWhen(toggle("Resonance", "Manually set if you use a resonance or not",
                                 () -> config.resoInHand, v -> config.resoInHand = v),
                         () -> !config.autoDetectResonanceInHand && !config.autoDetectBloodSorrowTime && config.bloodSorrowTimerEnabled))
+                .sub("Curse Tracker")
+                .add(toggle("Curse Tracker", "Show ❉ Curse remaining time on HUD (red X for 30s after curse expires)",
+                        () -> config.curseTrackerEnabled, v -> config.curseTrackerEnabled = v))
+                .add(visibleWhen(toggle("Color mobs based on curse", "Highlight cursed mobs with a colored bounding box",
+                                () -> config.curseTrackerColorMobs, v -> config.curseTrackerColorMobs = v),
+                        () -> config.curseTrackerEnabled))
+                .add(visibleWhen(dropdown("Mob highlight color", "Color of the cursed mob highlight",
+                                WynnExtrasConfig.TextColor.class, () -> config.curseTrackerMobColor, v -> config.curseTrackerMobColor = v),
+                        () -> config.curseTrackerEnabled && config.curseTrackerColorMobs))
                 .sub("Provoke Timer")
                 .add(toggle("Enable Provoke Timer", "Show provoke timer on HUD",
                         () -> config.provokeTimerToggle, v -> config.provokeTimerToggle = v))
@@ -482,7 +491,9 @@ public class WynnExtrasConfigScreen extends Screen implements ConfigScreenContex
                 .add(toggle("Artifacts power restored", "When you can charge again in TWP room 3",
                         () -> config.artifactRestored, v -> config.artifactRestored = v))
                 .add(toggle("Item broke (0 durability)", "Show 'ITEM BROKE' when one of your items reaches zero durability",
-                        () -> config.itemZeroDurability, v -> config.itemZeroDurability = v)).endSub()
+                        () -> config.itemZeroDurability, v -> config.itemZeroDurability = v))
+                .add(toggle("Colossal Core spawned", "Show 'CORE SPAWNED' when a Colossal Core spawns in TCC",
+                        () -> config.colossalCoreSpawned, v -> config.colossalCoreSpawned = v)).endSub()
             .sub("Tree Room Grotto Announcements")
                 .add(toggle("Isoptera in Gray Grotto", "Show 'GRAY' when the Interdimensional Isoptera is in the Gray Grotto",
                         () -> config.isopteraGray, v -> config.isopteraGray = v))
