@@ -457,7 +457,19 @@ public class WynnExtrasConfig {
         try {
             if (Files.exists(CONFIG_PATH)) {
                 String json = Files.readString(CONFIG_PATH);
-                INSTANCE = GSON.fromJson(json, WynnExtrasConfig.class);
+                try {
+                    INSTANCE = GSON.fromJson(json, WynnExtrasConfig.class);
+                } catch (Exception e) {
+                    // Corrupted config (invalid JSON): back it up and start fresh instead of crashing the game
+                    WynnExtras.LOGGER.error("[WynnExtras] Config is corrupted, resetting to defaults: " + e.getMessage());
+                    try {
+                        Files.move(CONFIG_PATH, CONFIG_PATH.resolveSibling("wynnextras.json.corrupted"),
+                                java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                    } catch (IOException moveEx) {
+                        WynnExtras.LOGGER.error("[WynnExtras] Failed to back up corrupted config: " + moveEx.getMessage());
+                    }
+                    INSTANCE = new WynnExtrasConfig();
+                }
                 if (INSTANCE == null) {
                     INSTANCE = new WynnExtrasConfig();
                 }
