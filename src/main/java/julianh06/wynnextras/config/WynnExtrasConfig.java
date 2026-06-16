@@ -3,7 +3,6 @@ package julianh06.wynnextras.config;
 import julianh06.wynnextras.core.WynnExtras;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.google.gson.JsonObject;
 import julianh06.wynnextras.features.raid.RaidLootTrackerOverlay;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.gui.screen.Screen;
@@ -14,10 +13,97 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
-import java.util.function.Consumer;
 
 public class WynnExtrasConfig {
     public enum Align { LEFT, CENTER, RIGHT }
+    public enum ClassSelectionContentProgressStyle {
+        LINE("Line"),
+        PROGRESS_BAR("Progress Bar"),
+        COMPACT("Compact (inline with name)");
+
+        private final String displayName;
+
+        ClassSelectionContentProgressStyle(String displayName) {
+            this.displayName = displayName;
+        }
+
+        @Override
+        public String toString() {
+            return displayName;
+        }
+    }
+
+    public enum ClassSelectionCompletionChromaMode {
+        NAME_AND_LINES("Name + lines"),
+        NAME_ONLY("Name only"),
+        NONE("None");
+
+        private final String displayName;
+
+        ClassSelectionCompletionChromaMode(String displayName) {
+            this.displayName = displayName;
+        }
+
+        @Override
+        public String toString() {
+            return displayName;
+        }
+    }
+
+    public enum ChatMediaPreviewLoadPolicy {
+        HOVER("Hover"),
+        CLICK_TO_LOAD("Click to load");
+
+        private final String displayName;
+
+        ChatMediaPreviewLoadPolicy(String displayName) {
+            this.displayName = displayName;
+        }
+
+        @Override
+        public String toString() {
+            return displayName;
+        }
+    }
+
+    public enum ChatMediaPreviewPosition {
+        TOP_LEFT("Top left"),
+        TOP("Top"),
+        TOP_RIGHT("Top right"),
+        LEFT("Left"),
+        CENTER("Center"),
+        RIGHT("Right"),
+        BOTTOM_LEFT("Bottom left"),
+        BOTTOM("Bottom"),
+        BOTTOM_RIGHT("Bottom right");
+
+        private final String displayName;
+
+        ChatMediaPreviewPosition(String displayName) {
+            this.displayName = displayName;
+        }
+
+        @Override
+        public String toString() {
+            return displayName;
+        }
+    }
+
+    public static final String CLASS_SELECTION_LINE_LEVEL = "level";
+    public static final String CLASS_SELECTION_LINE_LOCATION = "location";
+    public static final String CLASS_SELECTION_LINE_PLAYTIME = "playtime";
+    public static final String CLASS_SELECTION_LINE_CONTENT_PROGRESS = "content_progress";
+    public static final List<String> CLASS_SELECTION_BASE_LINE_IDS = List.of(
+            CLASS_SELECTION_LINE_LEVEL,
+            CLASS_SELECTION_LINE_PLAYTIME,
+            CLASS_SELECTION_LINE_LOCATION,
+            CLASS_SELECTION_LINE_CONTENT_PROGRESS);
+    public static final List<String> CLASS_SELECTION_LINE_IDS = List.of(
+            CLASS_SELECTION_LINE_LEVEL,
+            CLASS_SELECTION_LINE_LOCATION,
+            CLASS_SELECTION_LINE_PLAYTIME,
+            CLASS_SELECTION_LINE_CONTENT_PROGRESS);
+    public static final Map<String, String> CLASS_SELECTION_LINE_NAMES = createClassSelectionLineNames();
 
     private static final Path CONFIG_PATH = FabricLoader.getInstance()
             .getConfigDir()
@@ -132,15 +218,15 @@ public class WynnExtrasConfig {
     public boolean craftingPreviewBackground = true;
     public int craftingPreviewOverlayX = 20;
     public int craftingPreviewOverlayY = 20;
-    public boolean craftingDynamicTextures = true;
+    public boolean craftingDynamicTextures = false;
     public boolean craftingHelperReverseOrder = false;
     public float craftingHelperHeightPercent = 0.6f;
     public boolean skillpointHelper = true;
-    public boolean tradeMarketOverlay = true;
+    public boolean tradeMarketOverlay = false;
     public int tradeMarketOverlayX = 10;
     public int tradeMarketOverlayY = 10;
     public boolean tradeMarketOverlayBackground = true;
-    public boolean showMountHelper = true;
+    public boolean showMountHelper = false;
 
     // ==================== RAID ====================
     public boolean toggleRaidTimestamps = true;
@@ -212,13 +298,28 @@ public class WynnExtrasConfig {
     public int treeMapY = 5;
     public float treeMapScale = 1.0f;
 
+    // ==================== ASPECTS SCORING ====================
+    public AspectScoringMode aspectScoringMode = AspectScoringMode.MAX;
+    public boolean showIndividualAspectScore = true;
+    public float mythicAspectMultiplier = 26;
+    public float fabledAspectMultiplier = 1;
+    public float legendaryAspectMultiplier = 0.4F;
+    public float favoriteMultiplier = 3;
+
     // ==================== CHAT CLICK ====================
     public boolean chatClickPV = false;
     public boolean bombShareSuggestion = false;
+    public boolean chatMediaPreviewEnabled = false;
+    public ChatMediaPreviewLoadPolicy chatMediaPreviewLoadPolicy = ChatMediaPreviewLoadPolicy.CLICK_TO_LOAD;
+    public boolean chatMediaPreviewAutoDisplay = false;
+    public ChatMediaPreviewPosition chatMediaPreviewPosition = ChatMediaPreviewPosition.TOP_RIGHT;
+    public ChatMediaPreviewPosition chatMediaPreviewHoverPosition = ChatMediaPreviewPosition.CENTER;
+    public int chatMediaPreviewMaxScreenPercent = 50;
+    public int chatMediaPreviewMaxDownloadMb = 8;
+    public int chatMediaPreviewMaxPixels = 4194304;
+    public int chatMediaPreviewMaxGifFrames = 120;
 
     // ==================== Crowd Sourcing ================
-    public boolean crowdSourceRaidLootpools = true;
-    public boolean crowdSourceLootrunLootpools = true;
     public boolean crowdSourceGambits = true;
 
     // ==================== MISC ====================
@@ -313,10 +414,15 @@ public class WynnExtrasConfig {
 
     // ==================== CUSTOM CLASS SELECTION ====================
     public boolean customClassSelectionEnabled = true;
+    public boolean classSelectionBackgroundEnabled = false;
     public boolean useCustomClassColors = false;
     public Map<String, Integer> classCardAccentColors = new HashMap<>();
     public boolean hideClassSelectionQuickToggleButton = false;
     public Map<String, String> clientNicknames = new HashMap<>(); // UUID -> nickname
+    public List<String> classSelectionActiveLines = new ArrayList<>(CLASS_SELECTION_BASE_LINE_IDS);
+    public List<String> classSelectionAvailableLines = new ArrayList<>();
+    public ClassSelectionContentProgressStyle classSelectionContentProgressStyle = ClassSelectionContentProgressStyle.LINE;
+    public ClassSelectionCompletionChromaMode classSelectionCompletionChromaMode = ClassSelectionCompletionChromaMode.NAME_AND_LINES;
 
     // ==================== TETRIS ====================
     public int tetrisBestScore = 0;
@@ -331,6 +437,10 @@ public class WynnExtrasConfig {
     public boolean pvDarkmodeToggle = false;
 
     // ==================== ENUMS ====================
+    public enum AspectScoringMode {
+        MAX
+    }
+
     public enum TextColor {
         WHITE(Formatting.WHITE),
         BLACK(Formatting.BLACK),
@@ -483,6 +593,13 @@ public class WynnExtrasConfig {
                 if (INSTANCE.professionGoals == null) INSTANCE.professionGoals = new HashMap<>();
                 if (INSTANCE.classCardAccentColors == null) INSTANCE.classCardAccentColors = new HashMap<>();
                 if (INSTANCE.clientNicknames == null) INSTANCE.clientNicknames = new HashMap<>();
+                INSTANCE.syncClassSelectionLines();
+                if (INSTANCE.classSelectionContentProgressStyle == null) {
+                    INSTANCE.classSelectionContentProgressStyle = ClassSelectionContentProgressStyle.LINE;
+                }
+                if (INSTANCE.classSelectionCompletionChromaMode == null) {
+                    INSTANCE.classSelectionCompletionChromaMode = ClassSelectionCompletionChromaMode.NAME_AND_LINES;
+                }
                 //if (INSTANCE.configProfiles == null) INSTANCE.configProfiles = new LinkedHashMap<>();
                 if (INSTANCE.weeklyWars == null) INSTANCE.weeklyWars = new ArrayList<>();
                 if (INSTANCE.hudColorOverrides == null) INSTANCE.hudColorOverrides = new HashMap<>();
@@ -490,6 +607,13 @@ public class WynnExtrasConfig {
         } catch (IOException e) {
             WynnExtras.LOGGER.error("[WynnExtras] Failed to load config: " + e.getMessage());
             INSTANCE = new WynnExtrasConfig();
+        }
+        INSTANCE.syncClassSelectionLines();
+        if (INSTANCE.classSelectionContentProgressStyle == null) {
+            INSTANCE.classSelectionContentProgressStyle = ClassSelectionContentProgressStyle.LINE;
+        }
+        if (INSTANCE.classSelectionCompletionChromaMode == null) {
+            INSTANCE.classSelectionCompletionChromaMode = ClassSelectionCompletionChromaMode.NAME_AND_LINES;
         }
     }
 
@@ -505,5 +629,52 @@ public class WynnExtrasConfig {
     // ==================== CONFIG SCREEN ====================
     public static Screen createConfigScreen(Screen parent) {
         return new WynnExtrasConfigScreen(parent);
+    }
+
+    private static Map<String, String> createClassSelectionLineNames() {
+        LinkedHashMap<String, String> names = new LinkedHashMap<>();
+        names.put(CLASS_SELECTION_LINE_LEVEL, "Level");
+        names.put(CLASS_SELECTION_LINE_LOCATION, "Location");
+        names.put(CLASS_SELECTION_LINE_PLAYTIME, "Playtime");
+        names.put(CLASS_SELECTION_LINE_CONTENT_PROGRESS, "Content Progress");
+        return Collections.unmodifiableMap(names);
+    }
+
+    public void syncClassSelectionLines() {
+        if (classSelectionActiveLines == null) classSelectionActiveLines = new ArrayList<>();
+        if (classSelectionAvailableLines == null) classSelectionAvailableLines = new ArrayList<>();
+
+        classSelectionActiveLines = sanitizeClassSelectionLineList(classSelectionActiveLines, new HashSet<>());
+        Set<String> activeIds = new HashSet<>(classSelectionActiveLines);
+        classSelectionAvailableLines = sanitizeClassSelectionLineList(classSelectionAvailableLines, activeIds);
+
+        boolean showContentProgressLine = classSelectionContentProgressStyle == ClassSelectionContentProgressStyle.LINE;
+        Set<String> configuredIds = new HashSet<>(classSelectionActiveLines);
+        configuredIds.addAll(classSelectionAvailableLines);
+        for (String id : CLASS_SELECTION_BASE_LINE_IDS) {
+            if (!configuredIds.contains(id)) classSelectionAvailableLines.add(id);
+        }
+        if (showContentProgressLine && !configuredIds.contains(CLASS_SELECTION_LINE_CONTENT_PROGRESS)) {
+            classSelectionAvailableLines.add(CLASS_SELECTION_LINE_CONTENT_PROGRESS);
+        }
+    }
+
+    private List<String> sanitizeClassSelectionLineList(List<String> lines, Set<String> excludedIds) {
+        List<String> result = new ArrayList<>();
+        Set<String> seen = new HashSet<>(excludedIds);
+        for (String id : lines) {
+            id = migrateClassSelectionLineId(id);
+            if (!CLASS_SELECTION_LINE_IDS.contains(id) || seen.contains(id)) continue;
+            result.add(id);
+            seen.add(id);
+        }
+        return result;
+    }
+
+    private String migrateClassSelectionLineId(String id) {
+        if ("detail_1".equals(id)) return CLASS_SELECTION_LINE_LEVEL;
+        if ("detail_2".equals(id)) return CLASS_SELECTION_LINE_LOCATION;
+        if ("detail_3".equals(id)) return CLASS_SELECTION_LINE_PLAYTIME;
+        return id;
     }
 }

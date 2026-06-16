@@ -31,6 +31,7 @@ import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
+import net.minecraft.client.gui.screen.ingame.InventoryScreen;
 import net.minecraft.client.input.KeyInput;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
@@ -530,8 +531,9 @@ public abstract class HandledScreenMixin {
         int scanCode = input.scancode();
         int modifiers = input.modifiers();
 
-        // Block all key presses when nickname input is active (handled via CharInputEvent/KeyInputEvent)
-        if (ClassSelectionOverlay.nicknameInputActive) {
+        // Block all key presses when a class selection text input is active (handled via CharInputEvent/KeyInputEvent)
+        if (ClassSelectionOverlay.isTextInputActive()) {
+            ClassSelectionOverlay.handleScreenKeyInput(keyCode, scanCode, modifiers);
             cir.setReturnValue(true);
             cir.cancel();
             return;
@@ -555,7 +557,7 @@ public abstract class HandledScreenMixin {
             }
         }
 
-        if (keyCode == WynnExtrasConfig.INSTANCE.debugItemComponentsKey) {
+        if (WynnExtrasConfig.INSTANCE.debugItemComponentsKey != GLFW.GLFW_KEY_UNKNOWN && keyCode == WynnExtrasConfig.INSTANCE.debugItemComponentsKey) {
             if (ItemComponentsDebugOverlay.openHoveredStack((HandledScreen<?>) (Object) this)) {
                 cir.setReturnValue(true);
                 cir.cancel();

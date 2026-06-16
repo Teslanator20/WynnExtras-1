@@ -8,7 +8,7 @@ import com.wynntils.utils.type.Time;
 import julianh06.wynnextras.annotations.WEModule;
 import julianh06.wynnextras.core.WynnExtras;
 import julianh06.wynnextras.core.command.Command;
-import julianh06.wynnextras.utils.WynncraftApiHandler;
+import julianh06.wynnextras.utils.WynncraftAuthManager;
 import julianh06.wynnextras.features.profileviewer.data.*;
 import julianh06.wynnextras.utils.UI.WEScreen;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -347,7 +347,7 @@ public class TreeLoader {
 
 
             if (failCycles.get() >= MAX_FAIL_CYCLES) {
-                System.out.println("[TreeLoader] MAX_FAIL_CYCLES hit | stuck on='" + (abilitiesToClick2.isEmpty() ? "none" : abilitiesToClick2.getFirst().toString()) + "'");
+                WynnExtras.LOGGER.debug("[TreeLoader] MAX_FAIL_CYCLES hit | stuck on='{}'", abilitiesToClick2.isEmpty() ? "none" : abilitiesToClick2.getFirst().toString());
                 resetAll();
                 if(McUtils.mc().currentScreen != null) McUtils.mc().currentScreen.close();
                 McUtils.sendMessageToClient(WynnExtras.addWynnExtrasPrefix(Text.of("Something went wrong! Try again")));
@@ -364,7 +364,7 @@ public class TreeLoader {
                 boolean stillHasUnlock = hasUnlockPrefix(pendingClick.abilityName, screen);
 
                 if (!stillHasUnlock) {
-                    System.out.println("[TreeLoader] Confirmed | ability='" + pendingClick.abilityName + "' remaining=" + (abilitiesToClick2.size() - 1));
+                    WynnExtras.LOGGER.debug("[TreeLoader] Confirmed | ability='{}' remaining={}", pendingClick.abilityName, abilitiesToClick2.size() - 1);
                     abilitiesToClick2.removeFirst();
                     failCycles.set(0);
                     pendingClick = null;
@@ -404,13 +404,13 @@ public class TreeLoader {
             AbilityTreeData.Ability abilityFromNode = getAbilityFromNode(abilityNode, classTree);
 
             if (abilityFromNode == null) {
-                System.out.println("[TreeLoader] getAbilityFromNode returned null | page=" + abilityNode.meta.page + " x=" + abilityNode.coordinates.x + " y=" + abilityNode.coordinates.y);
+                WynnExtras.LOGGER.debug("[TreeLoader] getAbilityFromNode returned null | page={} x={} y={}", abilityNode.meta.page, abilityNode.coordinates.x, abilityNode.coordinates.y);
                 return;
             }
 
             String abilityName = extractAbilityNameFromHtml(abilityFromNode.name);
             if (abilityName == null) {
-                System.out.println("[TreeLoader] extractAbilityNameFromHtml returned null | raw name was: '" + abilityFromNode.name + "'");
+                WynnExtras.LOGGER.debug("[TreeLoader] extractAbilityNameFromHtml returned null | raw name was: '{}'", abilityFromNode.name);
                 return;
             }
             int pageOffset = abilityNode.meta.page - currentPage[0];
@@ -419,7 +419,7 @@ public class TreeLoader {
                 prevPageStacks.set(inv);
 
                 String direction = pageOffset > 0 ? "Next Page" : "Previous Page";
-                System.out.println("[TreeLoader] Switching page | direction=" + direction + " currentPage=" + currentPage[0] + " targetPage=" + abilityNode.meta.page + " for ability='" + abilityName + "'");
+                WynnExtras.LOGGER.debug("[TreeLoader] Switching page | direction={} currentPage={} targetPage={} for ability='{}'", direction, currentPage[0], abilityNode.meta.page, abilityName);
                 clickOnAbility(client, player, direction, screen);
                 currentPage[0] += pageOffset > 0 ? 1 : -1;
 
@@ -429,7 +429,7 @@ public class TreeLoader {
             }
 
             if (hasUnlockPrefix(abilityName, screen)) {
-                System.out.println("[TreeLoader] Clicking | ability='" + abilityName + "' page=" + currentPage[0] + " remaining=" + abilitiesToClick2.size());
+                WynnExtras.LOGGER.debug("[TreeLoader] Clicking | ability='{}' page={} remaining={}", abilityName, currentPage[0], abilitiesToClick2.size());
                 clickOnAbility(client, player, abilityName, screen);
                 pendingClick = new PendingClick(abilityNode, abilityName, currentPage[0]);
                 pendingClick.ticksWaiting = 0;
@@ -441,13 +441,13 @@ public class TreeLoader {
                 }
                 return;
             } else {
-            System.out.println("[TreeLoader] Not unlockable yet | ability='" + abilityName + "' failCycles=" + failCycles.get() + "/" + MAX_FAIL_CYCLES + " queueSize=" + abilitiesToClick2.size());
+            WynnExtras.LOGGER.debug("[TreeLoader] Not unlockable yet | ability='{}' failCycles={}/{} queueSize={}", abilityName, failCycles.get(), MAX_FAIL_CYCLES, abilitiesToClick2.size());
             if (abilitiesToClick2.size() > 1) {
                 AbilityMapData.Node removed = abilitiesToClick2.removeFirst();
                 abilitiesToClick2.add(Math.min(failCycles.get(), abilitiesToClick2.size() - 1), removed);
                 failCycles.set(failCycles.get() + 1);
             } else {
-                System.out.println("[TreeLoader] FREEZE RISK: single node stuck and not unlockable | ability='" + abilityName + "' page=" + abilityNode.meta.page + " x=" + abilityNode.coordinates.x + " y=" + abilityNode.coordinates.y);
+                WynnExtras.LOGGER.debug("[TreeLoader] FREEZE RISK: single node stuck and not unlockable | ability='{}' page={} x={} y={}", abilityName, abilityNode.meta.page, abilityNode.coordinates.x, abilityNode.coordinates.y);
                 failCycles.set(failCycles.get() + 1);
                 }
             }
@@ -952,12 +952,10 @@ public class TreeLoader {
             HttpURLConnection connection = (HttpURLConnection) url.openConnection();
             connection.setRequestMethod("GET");
             connection.setRequestProperty("User-Agent", "WynnExtras-Mod/1.0");
-            if(WynncraftApiHandler.INSTANCE.API_KEY != null) {
-                if (!WynncraftApiHandler.INSTANCE.API_KEY.isEmpty()) {
-                    connection.setRequestProperty("Authorization", "Bearer " + WynncraftApiHandler.INSTANCE.API_KEY);
-                }
-            }
+            String authHeader = WynncraftAuthManager.getAuthorizationHeaderValue();
+            if (authHeader != null) connection.setRequestProperty("Authorization", authHeader);
             int responseCode = connection.getResponseCode();
+            WynncraftAuthManager.handleWynncraftUnauthorized(responseCode);
             if (responseCode == HttpURLConnection.HTTP_OK) {
                 BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
                 StringBuilder response = new StringBuilder();

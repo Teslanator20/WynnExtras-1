@@ -77,7 +77,7 @@ public class WynnExtrasConfigScreen extends Screen implements ConfigScreenContex
 
     // Dropdown state
     private DropdownOption<?> activeDropdown = null;
-    private int dropdownX, dropdownY, dropdownWidth;
+    private int dropdownX, dropdownY, dropdownWidth, dropdownOptionWidth;
     private double dropdownScroll = 0;
 
     // Sticky subcategory header state
@@ -132,7 +132,7 @@ public class WynnExtrasConfigScreen extends Screen implements ConfigScreenContex
             .sub("Quick Access")
                 .add(button("Loot Pools", "Open the Loot Pools screen", (x) -> {
                     WEScreen.open(AspectScreen::new);
-                    AspectScreen.currentPage = AspectScreen.Page.LootPools;
+                    AspectScreen.currentPage = AspectScreen.Page.AspectLootpool;
                 }, "Open"))
                 .add(button("Profile Viewer", "View your stats", (x) -> {
                     PV.open(McUtils.playerName());
@@ -250,6 +250,17 @@ public class WynnExtrasConfigScreen extends Screen implements ConfigScreenContex
                                 () -> config.showTreeMapEverywhere, v -> config.showTreeMapEverywhere = v),
                         () -> config.tnaTreeMap))
                 .add(visibleWhen(text("The Map is movable", "To change its position open your inventory and drag it where you want"), () -> config.tnaTreeMap))
+            .sub("Aspect Scoring")
+                .add(toggle("Show Score", "Shows the individual score for each aspect",
+                        () -> config.showIndividualAspectScore, v -> config.showIndividualAspectScore = v))
+                .add(sliderF("Mythic Multiplier", "Multiplier applied to mythic aspects for scoring", 0.f, 200.f, 0.1f,
+                        () -> config.mythicAspectMultiplier, v -> config.mythicAspectMultiplier = v))
+                .add(sliderF("Fabled Multiplier", "Multiplier applied to fabled aspects for scoring", 0.f, 20.f, 0.1f,
+                        () -> config.fabledAspectMultiplier, v -> config.fabledAspectMultiplier = v))
+                .add(sliderF("Legendary Multiplier", "Multiplier applied to legendary aspects for scoring", 0.f, 2.f, 0.1f,
+                        () -> config.legendaryAspectMultiplier, v -> config.legendaryAspectMultiplier = v))
+                .add(sliderF("Favorite Multiplier", "Multiplier applied to favorite aspects for scoring (applies on top of rarity multiplier)", 0.f, 10.f, 0.1f,
+                        () -> config.favoriteMultiplier, v -> config.favoriteMultiplier = v))
             .endSub()
                 .add(toggle("Timestamps", "Show timestamps during raids",
                         () -> config.toggleRaidTimestamps, v -> config.toggleRaidTimestamps = v))
@@ -367,9 +378,9 @@ public class WynnExtrasConfigScreen extends Screen implements ConfigScreenContex
                 .add(toggle("Dark Mode", "Dark bank theme",
                         () -> config.darkmodeToggle, v -> config.darkmodeToggle = v))
                 .add(slider("Max Rows", "The maximum amount of rows (lower can reduce lag)",
-                        2, 24, () -> config.bankOverlayMaxRows, v -> config.bankOverlayMaxRows = v))
+                        1, 24, () -> config.bankOverlayMaxRows, v -> config.bankOverlayMaxRows = v))
                 .add(slider("Max Columns", "The maximum amount of columns (lower can reduce lag)",
-                        2, 24, () -> config.bankOverlayMaxColumns, v -> config.bankOverlayMaxColumns = v))
+                        1, 24, () -> config.bankOverlayMaxColumns, v -> config.bankOverlayMaxColumns = v))
                 .add(toggle("Hide empty rows", "Hides rows that only have locked pages",
                         () -> config.bankOverlayHideEmptyRows, v -> config.bankOverlayHideEmptyRows = v))
                 .add(toggle("Bag Overlay", "Show crafter bag counts by raid/tier on bank screens",
@@ -380,6 +391,20 @@ public class WynnExtrasConfigScreen extends Screen implements ConfigScreenContex
             .sub("Class Selection")
                 .add(toggle("Custom Class Selection", "Replace vanilla class selection with a custom overlay",
                         () -> config.customClassSelectionEnabled, v -> config.customClassSelectionEnabled = v))
+                .add(toggle("Class Selection Background", "Show the dark fullscreen background behind the class selection overlay",
+                        () -> config.classSelectionBackgroundEnabled, v -> config.classSelectionBackgroundEnabled = v))
+                .add(dropdown("Content Progress Style", "How content progress is shown on class cards",
+                        WynnExtrasConfig.ClassSelectionContentProgressStyle.class,
+                        () -> config.classSelectionContentProgressStyle,
+                        v -> {
+                            config.classSelectionContentProgressStyle = v;
+                            config.syncClassSelectionLines();
+                        }))
+                .add(classSelectionLines("Class Card Lines", "Choose which current stat lines are shown and in which order"))
+                .add(dropdown("Completion Chroma", "Where rainbow text is used for classes with 100% content completion",
+                        WynnExtrasConfig.ClassSelectionCompletionChromaMode.class,
+                        () -> config.classSelectionCompletionChromaMode,
+                        v -> config.classSelectionCompletionChromaMode = v))
                 .add(toggle("Use custom class colors", "Configure the accent color for each class and reskin",
                         () -> config.useCustomClassColors, v -> config.useCustomClassColors = v))
                 .add(visibleWhen(classColor("Warrior Color", "Accent color for Warrior class cards", "warrior", 0xCC4444),
@@ -418,6 +443,12 @@ public class WynnExtrasConfigScreen extends Screen implements ConfigScreenContex
                 .add(toggle("Crafting preview background", "Show a dark background for the crafting preview overlay",
                         () -> config.craftingPreviewBackground, v -> config.craftingPreviewBackground = v))
                 .add(text("The preview is movable", "To change its position just drag it where you want"))
+            .sub("Profession Overlay")
+                .add(toggle("Enable Profession Overlay", "Show XP gain overlay when gathering/crafting",
+                        () -> config.professionOverlayEnabled, v -> config.professionOverlayEnabled = v))
+                .add(visibleWhen(toggle("Show Exact XP", "Show exact XP values instead of percentages",
+                                () -> config.professionOverlayExactXp, v -> config.professionOverlayExactXp = v),
+                        () -> config.professionOverlayEnabled))
             .sub("Tooltips")
                 .add(toggle("Item Weights", "Show Wynnpool weights for mythic items",
                         () -> config.showWeight, v -> {
@@ -494,6 +525,38 @@ public class WynnExtrasConfigScreen extends Screen implements ConfigScreenContex
                         () -> config.itemZeroDurability, v -> config.itemZeroDurability = v))
                 .add(toggle("Colossal Core spawned", "Show 'CORE SPAWNED' when a Colossal Core spawns in TCC",
                         () -> config.colossalCoreSpawned, v -> config.colossalCoreSpawned = v)).endSub()
+            .sub("Media Preview (Experimental)")
+                .add(text("Warning", "We have restricted media downloads to only download from trusted sites (Discord, Imgur and Tenor). We have implemented these and other measures to minimize potential vulnerabilities, but they can never be completely ruled out. Use at your own risk."))
+                .add(toggle("Chat Media Preview", "Preview trusted Discord CDN, Imgur, and Tenor PNG, JPEG, and GIF links",
+                        () -> config.chatMediaPreviewEnabled, v -> config.chatMediaPreviewEnabled = v))
+                .add(visibleWhen(dropdown("Media Preview Loading", "When media previews are downloaded",
+                                WynnExtrasConfig.ChatMediaPreviewLoadPolicy.class,
+                                () -> config.chatMediaPreviewLoadPolicy,
+                                v -> config.chatMediaPreviewLoadPolicy = v),
+                        () -> config.chatMediaPreviewEnabled))
+                .add(visibleWhen(dropdown("Hover-preview Position", "Where media previews appear while hovering links",
+                                WynnExtrasConfig.ChatMediaPreviewPosition.class,
+                                () -> config.chatMediaPreviewHoverPosition,
+                                v -> config.chatMediaPreviewHoverPosition = v),
+                        () -> config.chatMediaPreviewEnabled))
+                .add(visibleWhen(toggle("Auto-show Media Preview", "Automatically download trusted media when its link appears in chat. This contacts an external service.",
+                                () -> config.chatMediaPreviewAutoDisplay, v -> config.chatMediaPreviewAutoDisplay = v),
+                        () -> config.chatMediaPreviewEnabled))
+                .add(visibleWhen(dropdown("Auto-preview Position", "Where automatic media previews appear",
+                                WynnExtrasConfig.ChatMediaPreviewPosition.class,
+                                () -> config.chatMediaPreviewPosition,
+                                v -> config.chatMediaPreviewPosition = v),
+                        () -> config.chatMediaPreviewEnabled && config.chatMediaPreviewAutoDisplay))
+                .add(visibleWhen(slider("Preview Max Screen %", "Maximum percentage of screen width and height used by previews",
+                                10, 50, () -> config.chatMediaPreviewMaxScreenPercent, v -> config.chatMediaPreviewMaxScreenPercent = v),
+                        () -> config.chatMediaPreviewEnabled))
+                .add(visibleWhen(slider("Preview Max MB", "Maximum media download size",
+                                1, 25, () -> config.chatMediaPreviewMaxDownloadMb, v -> config.chatMediaPreviewMaxDownloadMb = v),
+                        () -> config.chatMediaPreviewEnabled))
+                .add(visibleWhen(slider("Preview Max GIF Frames", "Maximum decoded GIF frames",
+                                1, 240, () -> config.chatMediaPreviewMaxGifFrames, v -> config.chatMediaPreviewMaxGifFrames = v),
+                        () -> config.chatMediaPreviewEnabled))
+            .endSub()
             .sub("Tree Room Grotto Announcements")
                 .add(toggle("Isoptera in Gray Grotto", "Show 'GRAY' when the Interdimensional Isoptera is in the Gray Grotto",
                         () -> config.isopteraGray, v -> config.isopteraGray = v))
@@ -539,12 +602,6 @@ public class WynnExtrasConfigScreen extends Screen implements ConfigScreenContex
 
         // ===== MISC =====
         category("Misc", 0xFF0872bc)
-            .sub("Profession Overlay")
-                .add(toggle("Enable Profession Overlay", "Show XP gain overlay when gathering/crafting",
-                        () -> config.professionOverlayEnabled, v -> config.professionOverlayEnabled = v))
-                .add(visibleWhen(toggle("Show Exact XP", "Show exact XP values instead of percentages",
-                                () -> config.professionOverlayExactXp, v -> config.professionOverlayExactXp = v),
-                        () -> config.professionOverlayEnabled))
             .sub("Auto Actions")
                 .add(toggle("Auto /stream", "Automatically send /stream when swapping worlds, changing classes, etc.",
                         () -> config.autoStreamEnabled, v -> config.autoStreamEnabled = v))
@@ -567,10 +624,6 @@ public class WynnExtrasConfigScreen extends Screen implements ConfigScreenContex
                 .add(slider("SDF", "Soft Drop Factor (ms) — soft drop repeat speed, 0 = instant",
                         0, 100, () -> config.tetrisSDF, v -> config.tetrisSDF = v))
             .sub("Crowd sourcing")
-                .add(toggle("Lootrun lootpools", "Help gather the current lootrun lootpool so others can see it with /we lootruns",
-                        () -> config.crowdSourceLootrunLootpools, v -> config.crowdSourceLootrunLootpools = v))
-                .add(toggle("Raid lootpools", "Help gather the current raid lootpool so others can see it with /we lootpool",
-                        () -> config.crowdSourceRaidLootpools, v -> config.crowdSourceRaidLootpools = v))
                 .add(toggle("Gambits", "Help gather the current gambits so others can see them with /we gambits",
                         () -> config.crowdSourceGambits, v -> config.crowdSourceGambits = v))
             .sub("Quick Repair")
@@ -645,6 +698,36 @@ public class WynnExtrasConfigScreen extends Screen implements ConfigScreenContex
                         () -> config.rightClickToCopyChat, v -> config.rightClickToCopyChat = v))
                 .add(toggle("Bomb Share Suggestion", "Show a clickable suggestion to share bombs with your guild when someone asks about them in chat",
                         () -> config.bombShareSuggestion, v -> config.bombShareSuggestion = v))
+                .add(toggle("Chat Media Preview (Experimental)", "Preview trusted Discord CDN, Imgur, and Tenor PNG, JPEG, and GIF links",
+                        () -> config.chatMediaPreviewEnabled, v -> config.chatMediaPreviewEnabled = v))
+                .add(text("Warning", "We have restricted media downloads to only download from trusted sites (Discord, Imgur and Tenor). We have implemented these and other measures to minimize potential vulnerabilities, but they can never be completely ruled out. Use at your own risk."))
+                .add(visibleWhen(dropdown("Media Preview Loading", "When media previews are downloaded",
+                                WynnExtrasConfig.ChatMediaPreviewLoadPolicy.class,
+                                () -> config.chatMediaPreviewLoadPolicy,
+                                v -> config.chatMediaPreviewLoadPolicy = v),
+                        () -> config.chatMediaPreviewEnabled))
+                .add(visibleWhen(dropdown("Hover-preview Position", "Where media previews appear while hovering links",
+                                WynnExtrasConfig.ChatMediaPreviewPosition.class,
+                                () -> config.chatMediaPreviewHoverPosition,
+                                v -> config.chatMediaPreviewHoverPosition = v),
+                        () -> config.chatMediaPreviewEnabled))
+                .add(visibleWhen(toggle("Auto-show Media Preview", "Automatically download trusted media when its link appears in chat. This contacts an external service.",
+                                () -> config.chatMediaPreviewAutoDisplay, v -> config.chatMediaPreviewAutoDisplay = v),
+                        () -> config.chatMediaPreviewEnabled))
+                .add(visibleWhen(dropdown("Auto-preview Position", "Where automatic media previews appear",
+                                WynnExtrasConfig.ChatMediaPreviewPosition.class,
+                                () -> config.chatMediaPreviewPosition,
+                                v -> config.chatMediaPreviewPosition = v),
+                        () -> config.chatMediaPreviewEnabled && config.chatMediaPreviewAutoDisplay))
+                .add(visibleWhen(slider("Preview Max Screen %", "Maximum percentage of screen width and height used by previews",
+                                10, 50, () -> config.chatMediaPreviewMaxScreenPercent, v -> config.chatMediaPreviewMaxScreenPercent = v),
+                        () -> config.chatMediaPreviewEnabled))
+                .add(visibleWhen(slider("Preview Max MB", "Maximum media download size",
+                                1, 25, () -> config.chatMediaPreviewMaxDownloadMb, v -> config.chatMediaPreviewMaxDownloadMb = v),
+                        () -> config.chatMediaPreviewEnabled))
+                .add(visibleWhen(slider("Preview Max GIF Frames", "Maximum decoded GIF frames",
+                                1, 240, () -> config.chatMediaPreviewMaxGifFrames, v -> config.chatMediaPreviewMaxGifFrames = v),
+                        () -> config.chatMediaPreviewEnabled))
             .sub("Automation")
                 .add(toggle("Auto /stream", "Automatically send /stream when swapping worlds, changing classes, etc.",
                         () -> config.autoStreamEnabled, v -> config.autoStreamEnabled = v))
@@ -675,6 +758,20 @@ public class WynnExtrasConfigScreen extends Screen implements ConfigScreenContex
             .sub("Class Selection")
                 .add(toggle("Custom Class Selection", "Replace vanilla class selection with a custom overlay",
                         () -> config.customClassSelectionEnabled, v -> config.customClassSelectionEnabled = v))
+                .add(toggle("Class Selection Background", "Show the dark fullscreen background behind the class selection overlay",
+                        () -> config.classSelectionBackgroundEnabled, v -> config.classSelectionBackgroundEnabled = v))
+                .add(dropdown("Content Progress Style", "How content progress is shown on class cards",
+                        WynnExtrasConfig.ClassSelectionContentProgressStyle.class,
+                        () -> config.classSelectionContentProgressStyle,
+                        v -> {
+                            config.classSelectionContentProgressStyle = v;
+                            config.syncClassSelectionLines();
+                        }))
+                .add(classSelectionLines("Class Card Lines", "Choose which current stat lines are shown and in which order"))
+                .add(dropdown("Completion Chroma", "Where rainbow text is used for classes with 100% content completion",
+                        WynnExtrasConfig.ClassSelectionCompletionChromaMode.class,
+                        () -> config.classSelectionCompletionChromaMode,
+                        v -> config.classSelectionCompletionChromaMode = v))
                 .add(toggle("Use custom class colors", "Configure the accent color for each class and reskin",
                         () -> config.useCustomClassColors, v -> config.useCustomClassColors = v))
                 .add(visibleWhen(classColor("Warrior Color", "Accent color for Warrior class cards", "warrior", 0xCC4444),
@@ -731,11 +828,12 @@ public class WynnExtrasConfigScreen extends Screen implements ConfigScreenContex
     public int getContentWidth() { return width - SIDEBAR_WIDTH - 40; }
 
     @Override
-    public void openDropdown(DropdownOption<?> opt, int x, int y, int w) {
+    public void openDropdown(DropdownOption<?> opt, int x, int y, int w, int optionW) {
         this.activeDropdown = opt;
         this.dropdownX = x;
         this.dropdownY = y;
         this.dropdownWidth = w;
+        this.dropdownOptionWidth = optionW;
         this.dropdownScroll = 0;
     }
 
@@ -797,6 +895,57 @@ public class WynnExtrasConfigScreen extends Screen implements ConfigScreenContex
                     }
                 },
                 -1, defaultColor);
+    }
+
+    private ConfigOption classSelectionLines(String name, String desc) {
+        return new LineListOption(name, desc,
+                () -> {
+                    config.syncClassSelectionLines();
+                    return visibleClassSelectionLines(config.classSelectionActiveLines);
+                },
+                v -> {
+                    config.classSelectionActiveLines = mergeHiddenClassSelectionLines(v, config.classSelectionActiveLines);
+                    config.syncClassSelectionLines();
+                },
+                () -> {
+                    config.syncClassSelectionLines();
+                    return visibleClassSelectionLines(config.classSelectionAvailableLines);
+                },
+                v -> {
+                    config.classSelectionAvailableLines = mergeHiddenClassSelectionLines(v, config.classSelectionAvailableLines);
+                    config.syncClassSelectionLines();
+                },
+                () -> WynnExtrasConfig.CLASS_SELECTION_LINE_NAMES,
+                "Active lines",
+                "Available lines");
+    }
+
+    private List<String> visibleClassSelectionLines(List<String> lines) {
+        if (config.classSelectionContentProgressStyle == WynnExtrasConfig.ClassSelectionContentProgressStyle.LINE) {
+            return lines;
+        }
+
+        List<String> visible = new ArrayList<>();
+        for (String line : lines) {
+            if (!WynnExtrasConfig.CLASS_SELECTION_LINE_CONTENT_PROGRESS.equals(line)) {
+                visible.add(line);
+            }
+        }
+        return visible;
+    }
+
+    private List<String> mergeHiddenClassSelectionLines(List<String> visibleLines, List<String> previousLines) {
+        List<String> merged = new ArrayList<>(visibleLines);
+        if (config.classSelectionContentProgressStyle == WynnExtrasConfig.ClassSelectionContentProgressStyle.LINE) {
+            return merged;
+        }
+
+        for (int i = 0; i < previousLines.size(); i++) {
+            String line = previousLines.get(i);
+            if (!WynnExtrasConfig.CLASS_SELECTION_LINE_CONTENT_PROGRESS.equals(line) || merged.contains(line)) continue;
+            merged.add(Math.min(i, merged.size()), line);
+        }
+        return merged;
     }
 
     private ConfigOption slider(String name, String desc, int min, int max, Supplier<Integer> get, Consumer<Integer> set) {
@@ -1118,9 +1267,11 @@ public class WynnExtrasConfigScreen extends Screen implements ConfigScreenContex
         int visibleH = Math.min(totalContentH, DROPDOWN_MAX_HEIGHT);
         boolean needsScroll = totalContentH > DROPDOWN_MAX_HEIGHT;
 
-        int ddW = dropdownWidth + (needsScroll ? 10 : 0);
-        int ddX = dropdownX;
+        DropdownBounds bounds = getDropdownBounds(values, needsScroll);
+        int ddW = bounds.width();
+        int ddX = bounds.x();
         int ddY = dropdownY;
+        int itemW = bounds.itemWidth();
 
         if (ddY + visibleH > height - 10) {
             ddY = dropdownY - visibleH - 24;
@@ -1134,26 +1285,25 @@ public class WynnExtrasConfigScreen extends Screen implements ConfigScreenContex
         ctx.fill(ddX - 1, ddY - 1, ddX + ddW + 1, ddY + visibleH + 1, BG_MEDIUM);
         ctx.fill(ddX, ddY, ddX + ddW, ddY + visibleH, PARCHMENT);
 
-        ctx.enableScissor(ddX, ddY, ddX + ddW - (needsScroll ? 8 : 0), ddY + visibleH);
+        ctx.enableScissor(ddX, ddY, ddX + itemW, ddY + visibleH);
 
         for (int i = 0; i < values.length; i++) {
             int iy = ddY + i * DROPDOWN_ITEM_HEIGHT - (int)dropdownScroll;
 
             if (iy + DROPDOWN_ITEM_HEIGHT < ddY || iy > ddY + visibleH) continue;
 
-            boolean hovered = mouseX >= ddX && mouseX < ddX + ddW - (needsScroll ? 8 : 0)
+            boolean hovered = mouseX >= ddX && mouseX < ddX + itemW
                     && mouseY >= Math.max(ddY, iy) && mouseY < Math.min(ddY + visibleH, iy + DROPDOWN_ITEM_HEIGHT);
             boolean selected = values[i].equals(activeDropdown.getter.get());
 
             int itemBg = selected ? selectedCategoryColor : (hovered ? PARCHMENT_HOVER : PARCHMENT);
-            ctx.fill(ddX, iy, ddX + ddW - (needsScroll ? 8 : 0), iy + DROPDOWN_ITEM_HEIGHT, itemBg);
+            ctx.fill(ddX, iy, ddX + itemW, iy + DROPDOWN_ITEM_HEIGHT, itemBg);
 
             if (i > 0) {
-                ctx.fill(ddX + 8, iy, ddX + ddW - (needsScroll ? 16 : 8), iy + 1, BG_LIGHT);
+                ctx.fill(ddX + 8, iy, ddX + itemW - 8, iy + 1, BG_LIGHT);
             }
 
-            String text = values[i].toString();
-            if (text.length() > 14) text = text.substring(0, 12) + "..";
+            String text = trimDropdownText(values[i].toString(), itemW - 16);
             ctx.drawTextWithShadow(textRenderer, text, ddX + 8, iy + 7, selected ? GOLD : TEXT_LIGHT);
         }
 
@@ -1169,6 +1319,31 @@ public class WynnExtrasConfigScreen extends Screen implements ConfigScreenContex
             ctx.fill(sbX + 1, thumbY, sbX + 4, thumbY + thumbH, selectedCategoryColor);
         }
     }
+
+    private DropdownBounds getDropdownBounds(Object[] values, boolean needsScroll) {
+        int scrollW = needsScroll ? 10 : 0;
+        int longestTextW = 0;
+        for (Object value : values) {
+            longestTextW = Math.max(longestTextW, textRenderer.getWidth(value.toString()));
+        }
+
+        int desiredW = Math.max(dropdownWidth, longestTextW + 16 + scrollW);
+        int maxW = Math.max(dropdownWidth, dropdownOptionWidth / 2);
+        int ddW = Math.min(desiredW, maxW);
+        int ddX = dropdownX + dropdownWidth - ddW;
+        return new DropdownBounds(ddX, ddW, ddW - scrollW);
+    }
+
+    private String trimDropdownText(String text, int maxTextW) {
+        if (textRenderer.getWidth(text) <= maxTextW) return text;
+
+        String suffix = "..";
+        int suffixW = textRenderer.getWidth(suffix);
+        if (maxTextW <= suffixW) return textRenderer.trimToWidth(text, maxTextW);
+        return textRenderer.trimToWidth(text, maxTextW - suffixW) + suffix;
+    }
+
+    private record DropdownBounds(int x, int width, int itemWidth) {}
 
     private void drawFooter(DrawContext ctx, int mouseX, int mouseY) {
         int footerY = height - FOOTER_HEIGHT + 5;
@@ -1212,9 +1387,11 @@ public class WynnExtrasConfigScreen extends Screen implements ConfigScreenContex
             int totalContentH = values.length * DROPDOWN_ITEM_HEIGHT;
             int visibleH = Math.min(totalContentH, DROPDOWN_MAX_HEIGHT);
             boolean needsScroll = totalContentH > DROPDOWN_MAX_HEIGHT;
-            int ddW = dropdownWidth + (needsScroll ? 10 : 0);
-            int ddX = dropdownX;
+            DropdownBounds bounds = getDropdownBounds(values, needsScroll);
+            int ddW = bounds.width();
+            int ddX = bounds.x();
             int ddY = dropdownY;
+            int itemW = bounds.itemWidth();
 
             if (ddY + visibleH > height - 10) {
                 ddY = dropdownY - visibleH - 24;
@@ -1226,10 +1403,11 @@ public class WynnExtrasConfigScreen extends Screen implements ConfigScreenContex
                     if (iy < ddY - DROPDOWN_ITEM_HEIGHT || iy > ddY + visibleH) continue;
 
                     if (my >= Math.max(ddY, iy) && my < Math.min(ddY + visibleH, iy + DROPDOWN_ITEM_HEIGHT)
-                            && mx < ddX + ddW - (needsScroll ? 8 : 0)) {
+                            && mx < ddX + itemW) {
                         activeDropdown.setValueByIndex(i);
                         activeDropdown = null;
                         dropdownScroll = 0;
+                        updateMaxScroll();
                         McUtils.playSoundUI(SoundEvents.UI_BUTTON_CLICK.value());
                         return true;
                     }
@@ -1519,6 +1697,10 @@ public class WynnExtrasConfigScreen extends Screen implements ConfigScreenContex
 
     @Override
     public boolean keyPressed(KeyInput input) {
+        for (ConfigOption opt : getCurrentOptions()) {
+            if (opt.keyPressed(input.key(), input.scancode(), input.modifiers())) return true;
+        }
+
         // Relay to any listening KeybindOption
         for (Category cat : categories) {
             for (Object item : cat.items) {
@@ -1575,6 +1757,11 @@ public class WynnExtrasConfigScreen extends Screen implements ConfigScreenContex
 
     @Override
     public boolean charTyped(CharInput charInput) {
+        char c = (char) charInput.codepoint();
+        for (ConfigOption opt : getCurrentOptions()) {
+            if (opt.charTyped(c, charInput.modifiers())) return true;
+        }
+
         // Block character input when Ctrl is held (Ctrl+V etc.)
         long window = net.minecraft.client.MinecraftClient.getInstance().getWindow().getHandle();
         boolean ctrlHeld = org.lwjgl.glfw.GLFW.glfwGetKey(window, org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT_CONTROL) == org.lwjgl.glfw.GLFW.GLFW_PRESS
@@ -1582,7 +1769,6 @@ public class WynnExtrasConfigScreen extends Screen implements ConfigScreenContex
         if (ctrlHeld) return true;
 
         if (searchFocused) {
-            char c = (char) charInput.codepoint();
             if (c >= 32 && c < 127) {
                 searchQuery += c;
                 onSearchQueryChanged();
@@ -1590,6 +1776,26 @@ public class WynnExtrasConfigScreen extends Screen implements ConfigScreenContex
             }
         }
         return super.charTyped(charInput);
+    }
+
+    private List<ConfigOption> getCurrentOptions() {
+        List<ConfigOption> options = new ArrayList<>();
+        if (selectedCategory < 0 || selectedCategory >= categories.size()) return options;
+
+        Category cat = categories.get(selectedCategory);
+        if (!searchQuery.isEmpty() && !categoryHasMatches(cat)) return options;
+
+        for (Object item : cat.items) {
+            if (item instanceof SubCategory sub) {
+                if (!subHasMatches(sub) || !sub.isExpanded()) continue;
+                for (ConfigOption opt : sub.options) {
+                    if (matchesSearch(opt)) options.add(opt);
+                }
+            } else if (item instanceof ConfigOption opt && matchesSearch(opt)) {
+                options.add(opt);
+            }
+        }
+        return options;
     }
 
     private void onSearchQueryChanged() {
